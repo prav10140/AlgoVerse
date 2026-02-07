@@ -4,7 +4,7 @@ import { Center, Text, RoundedBox, Environment, ContactShadows, Html } from '@re
 import * as THREE from 'three';
 
 // ⚠️ REPLACE WITH YOUR API KEY
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;; 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // ==========================================
 // 1. STYLES (Added Code Highlighting Support)
@@ -343,4 +343,5 @@ export default function AIAlgoBuilder({ onBack }) {
       </div>
     </>
   );
+
 }
