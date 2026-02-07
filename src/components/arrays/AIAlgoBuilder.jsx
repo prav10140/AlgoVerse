@@ -160,81 +160,94 @@ export default function AIAlgoBuilder({ onBack }) {
     }
   }, [currentStep, frames]);
 
-  // --- GEMINI API CALL ---
-  const generateVisualization = async () => {
-    if (!prompt.trim()) return;
-    setIsLoading(true);
-    setFrames([]); 
-    setGeneratedCode("");
-    setCurrentStep(0);
-    setIsPlaying(false);
-    setLog("Generating Algorithm & Steps...");
-    
-    setTitle(prompt.length > 20 ? prompt.substring(0, 20) + "..." : prompt);
+// --- GEMINI API CALL ---
+const generateVisualization = async () => {
+  if (!prompt.trim()) return;
 
-    try {
-      const systemPrompt = `
-        You are an Algorithm Engine. 
-        1. Write a clean C++ function for the user's request.
-        2. Simulate it step-by-step on a small array.
+  setIsLoading(true);
+  setFrames([]);
+  setGeneratedCode("");
+  setCurrentStep(0);
+  setIsPlaying(false);
+  setLog("Generating Algorithm & Steps...");
 
-        Return a VALID JSON OBJECT with this EXACT structure:
-        {
-          "code": "Actual C++ code string here (use \\n for newlines)",
-          "frames": [
-            {
-              "array": [number, number], 
-              "highlights": { "index": "color_hex" }, 
-              "labels": { "index": "label_text" },
-              "message": "Short description",
-              "line": 5  // The 1-based line number of code executing in this step
-            }
-          ]
-        }
-        
-        Rules:
-        - "highlights": Use "#ef4444" (Compare), "#22c55e" (Found), "#f59e0b" (Swap).
-        - "line": MUST match the line number in your generated "code" string.
-        - RETURN ONLY RAW JSON.
-      `;
+  setTitle(prompt.length > 20 ? prompt.substring(0, 20) + "..." : prompt);
 
-      // Using gemini-1.5-flash for stability
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: systemPrompt + "\nUser Input: " + prompt }] }]
-          })
-        }
-      );
+  try {
+    const systemPrompt = `
+      You are an Algorithm Engine. 
+      1. Write a clean C++ function for the user's request.
+      2. Simulate it step-by-step on a small array.
 
-      if (!response.ok) throw new Error("API Error");
-
-      const data = await response.json();
-      if (!data.candidates || data.candidates.length === 0) throw new Error("No response.");
-
-      let rawText = data.candidates[0].content.parts[0].text;
-      rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-      
-      const parsedData = JSON.parse(rawText);
-      
-      if (parsedData.frames && parsedData.frames.length > 0) {
-        setFrames(parsedData.frames);
-        setGeneratedCode(parsedData.code || "// No code generated");
-        setLog("Visualization Ready!");
-      } else {
-        setLog("AI returned invalid data.");
+      Return a VALID JSON OBJECT with this EXACT structure:
+      {
+        "code": "Actual C++ code string here (use \\n for newlines)",
+        "frames": [
+          {
+            "array": [number, number], 
+            "highlights": { "index": "color_hex" }, 
+            "labels": { "index": "label_text" },
+            "message": "Short description",
+            "line": 5
+          }
+        ]
       }
 
-    } catch (error) {
-      console.error(error);
-      setLog(`Error: ${error.message}`);
-    } finally {
-      setIsLoading(false);
+      Rules:
+      - "highlights": Use "#ef4444" (Compare), "#22c55e" (Found), "#f59e0b" (Swap).
+      - "line": MUST match the line number in your generated "code".
+      - RETURN ONLY RAW JSON.
+    `;
+
+    // ✅ CALL YOUR BACKEND INSTEAD OF GEMINI
+    const response = await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: systemPrompt + "\nUser Input: " + prompt
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) throw new Error("Backend API Error");
+
+    const data = await response.json();
+
+    if (!data.candidates || data.candidates.length === 0)
+      throw new Error("No response from AI");
+
+    let rawText = data.candidates[0].content.parts[0].text;
+
+    rawText = rawText
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    const parsedData = JSON.parse(rawText);
+
+    if (parsedData.frames && parsedData.frames.length > 0) {
+      setFrames(parsedData.frames);
+      setGeneratedCode(parsedData.code || "// No code generated");
+      setLog("Visualization Ready!");
+    } else {
+      setLog("AI returned invalid data.");
     }
-  };
+
+  } catch (error) {
+    console.error(error);
+    setLog(`Error: ${error.message}`);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   const activeFrame = frames.length > 0 ? frames[currentStep] : null;
   const activeLine = activeFrame ? activeFrame.line : -1;
@@ -345,3 +358,4 @@ export default function AIAlgoBuilder({ onBack }) {
   );
 
 }
+
