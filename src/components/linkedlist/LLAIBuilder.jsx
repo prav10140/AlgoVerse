@@ -3,8 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { Center, Text, RoundedBox, Environment, ContactShadows, Html } from '@react-three/drei';
 import * as THREE from 'three';
 
-// ⚠️ REPLACE WITH YOUR API KEY
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
 
 // ==========================================
 // 1. IMPROVED STYLES
@@ -226,75 +225,87 @@ export default function LLAIBuilder({ onBack }) {
     }
   }, [currentStep, frames]);
 
-  // --- GEMINI API ---
-  const generateVisualization = async () => {
-    if (!prompt.trim()) return;
-    setIsLoading(true);
-    setFrames([]);
-    setCode("");
-    setCurrentStep(0);
-    setMessage("AI is thinking...");
+// --- GEMINI API ---
+const generateVisualization = async () => {
+  if (!prompt.trim()) return;
+  setIsLoading(true);
+  setFrames([]);
+  setCode("");
+  setCurrentStep(0);
+  setMessage("AI is thinking...");
 
-    try {
-      const systemPrompt = `
-        You are a Linked List Algorithm Visualization Engine.
-        1. Write a clean C++ function for the user's request.
-        2. Simulate it step-by-step on a small list (max 5-6 nodes).
+  try {
+    const systemPrompt = `
+      You are a Linked List Algorithm Visualization Engine.
+      1. Write a clean C++ function for the user's request.
+      2. Simulate it step-by-step on a small list (max 5-6 nodes).
 
-        Return a VALID JSON OBJECT with this EXACT structure:
-        {
-          "code": "C++ code string\\nwith newlines",
-          "frames": [
-            {
-              "nodes": [ { "id": 0, "val": 10, "next": 1 }, { "id": 1, "val": 20, "next": null } ], 
-              "pointers": { "head": 0, "curr": 1 },
-              "message": "Traversing to next node...",
-              "line": 5
-            }
-          ]
-        }
-        
-        Rules:
-        - "nodes": Array of objects. "next" is the ID of the next node (or null).
-        - "pointers": Key-value pairs. Key is pointer name, Value is node ID it points to.
-        - "line": The 1-based line number of code executing.
-        - RETURN ONLY RAW JSON.
-      `;
-
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: systemPrompt + "\nUser Input: " + prompt }] }]
-          })
-        }
-      );
-
-      const data = await response.json();
-      if (!data.candidates || data.candidates.length === 0) throw new Error("No response.");
-
-      let rawText = data.candidates[0].content.parts[0].text;
-      rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-      
-      const parsedData = JSON.parse(rawText);
-      
-      if (parsedData.frames && parsedData.frames.length > 0) {
-        setFrames(parsedData.frames);
-        setCode(parsedData.code || "// No code generated");
-        setMessage("Visualization Ready!");
-      } else {
-        setMessage("AI returned invalid structure. Try again.");
+      Return a VALID JSON OBJECT with this EXACT structure:
+      {
+        "code": "C++ code string\\nwith newlines",
+        "frames": [
+          {
+            "nodes": [ { "id": 0, "val": 10, "next": 1 }, { "id": 1, "val": 20, "next": null } ], 
+            "pointers": { "head": 0, "curr": 1 },
+            "message": "Traversing to next node...",
+            "line": 5
+          }
+        ]
       }
 
-    } catch (error) {
-      console.error(error);
-      setMessage(`Error: ${error.message}`);
-    } finally {
-      setIsLoading(false);
+      Rules:
+      - "nodes": Array of objects. "next" is the ID of the next node (or null).
+      - "pointers": Key-value pairs. Key is pointer name, Value is node ID it points to.
+      - "line": The 1-based line number of code executing.
+      - RETURN ONLY RAW JSON.
+    `;
+
+    // ✅ CALL YOUR BACKEND INSTEAD OF GEMINI
+    const response = await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: systemPrompt + "\nUser Input: " + prompt
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) throw new Error("Backend API Error");
+
+    const data = await response.json();
+
+    if (!data.candidates || data.candidates.length === 0)
+      throw new Error("No response.");
+
+    let rawText = data.candidates[0].content.parts[0].text;
+
+    rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    const parsedData = JSON.parse(rawText);
+
+    if (parsedData.frames && parsedData.frames.length > 0) {
+      setFrames(parsedData.frames);
+      setCode(parsedData.code || "// No code generated");
+      setMessage("Visualization Ready!");
+    } else {
+      setMessage("AI returned invalid structure. Try again.");
     }
-  };
+
+  } catch (error) {
+    console.error(error);
+    setMessage(`Error: ${error.message}`);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   const activeFrame = frames.length > 0 ? frames[currentStep] : null;
   const activeLine = activeFrame ? activeFrame.line : -1;
@@ -411,4 +422,5 @@ export default function LLAIBuilder({ onBack }) {
       </div>
     </>
   );
+
 }
